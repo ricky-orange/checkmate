@@ -1,5 +1,5 @@
-import { pieceImage } from '/pieces.mjs'
-import { newGame, position, remaining, transition } from '/game.mjs'
+import { pieceImage } from './pieces.mjs'
+import { newGame, position, remaining, transition } from './game.mjs'
 
 const $ = id => document.getElementById(id)
 const saved = key => {
@@ -8,13 +8,14 @@ const saved = key => {
 const persist = (key, value) => localStorage.setItem(key, JSON.stringify(value))
 const guest = { w: { id: 'white', name: '白方' }, b: { id: 'black', name: '黑方' } }
 const names = { k: '王', q: '后', r: '車', b: '象', n: '馬', p: '兵' }
-const requestedRoom = new URLSearchParams(location.search).get('room')
+const guestOnly = document.documentElement.hasAttribute('data-guest-only')
+const requestedRoom = guestOnly ? null : new URLSearchParams(location.search).get('room')
 let session = {}
 let local = loadLocalGame('local')
 let online = null
 let room = null
 let mode = null
-let unlocked = false
+let unlocked = guestOnly
 let computer = loadLocalGame('computer')
 const modeNames = { computer: '電腦對戰', online: '線上對戰', local: '兩人同玩' }
 let selected = ''
@@ -86,7 +87,7 @@ function render() {
   $('entry').hidden = entered
   $('mode-picker').hidden = !entered || Boolean(mode)
   $('game-screen').hidden = !entered || !mode
-  $('account').hidden = !entered
+  $('account').hidden = guestOnly || !entered
   $('back-modes').hidden = !entered || !mode
   $('entry-guest').hidden = session.accounts !== false
   $('entry-login').disabled = session.accounts !== true
@@ -544,7 +545,10 @@ function chooseMode(next) {
   render()
   scheduleComputer()
 }
-for (const button of document.querySelectorAll('[data-mode]')) button.onclick = () => chooseMode(button.dataset.mode)
+for (const button of document.querySelectorAll('[data-mode]')) {
+  button.hidden = guestOnly && button.dataset.mode === 'online'
+  button.onclick = () => chooseMode(button.dataset.mode)
+}
 $('back-modes').onclick = () => chooseMode(null)
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { pauseLocal(); pauseComputer() }
@@ -564,8 +568,10 @@ setInterval(() => {
 pauseLocal()
 pauseComputer()
 render()
-await attempt(async () => {
-  session = await api('session')
-  render()
-  if (requestedRoom && session.main && session.online) { chooseMode('online'); await connect(requestedRoom) }
-})
+if (!guestOnly) {
+  await attempt(async () => {
+    session = await api('session')
+    render()
+    if (requestedRoom && session.main && session.online) { chooseMode('online'); await connect(requestedRoom) }
+  })
+}
