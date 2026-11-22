@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#181917">
+<title>Checkmate 西洋棋</title>
+<link rel="stylesheet" href="/style.css">
+<script type="importmap">{"imports":{"chess.js":"/chess.mjs"}}</script>
+<script type="module" src="/app.mjs"></script>
+</head>
+<body>
+<header><a href="/" class="brand"><span>♞</span> CHECKMATE</a><div class="line nav"><button id="back-modes" hidden>遊戲模式</button><button id="account" hidden>登出</button></div></header>
+<section id="entry" class="entry" hidden>
+  <div class="entry-card">
+    <span class="entry-mark" aria-hidden="true">♞</span>
+    <h1>西洋棋</h1>
+    <p>登入或註冊後開始對弈。</p>
+    <div class="entry-actions"><button id="entry-login" class="primary">登入帳號</button><button id="entry-register">註冊</button><button id="entry-guest" hidden>訪客試玩</button></div>
+    <p id="entry-message" role="status"></p>
+  </div>
+</section>
+<section id="mode-picker" class="entry" hidden>
+  <div class="entry-card">
+    <h1>選擇遊戲模式</h1>
+    <div class="entry-actions">
+      <button data-mode="computer"><strong>電腦對戰</strong><small>與電腦對弈</small></button>
+      <button data-mode="online"><strong>線上對戰</strong><small>開房或加入好友的棋局</small></button>
+      <button data-mode="local"><strong>兩人同玩</strong><small>在同一台裝置面對面對弈</small></button>
+    </div>
+  </div>
+</section>
+<main id="game-screen" hidden>
+<section class="play" aria-label="棋局">
+<div id="black" class="player"></div>
+<div id="board" class="board" aria-label="西洋棋棋盤"></div>
+<div id="white" class="player"></div>
+</section>
+<aside>
+<h1 id="mode-title"></h1>
+<p id="status" role="status"></p>
+<form id="setup">
+<label for="minutes">每人時間</label>
+<div class="line"><input id="minutes" type="number" min="1" max="180" value="10" required aria-label="每人分鐘"><span>分鐘</span><label><input id="unlimited" type="checkbox"> 不限時</label></div>
+<fieldset id="difficulty-area" hidden>
+<legend>電腦棋力</legend>
+<div class="difficulty-options">
+<label><input type="radio" name="difficulty" value="easy"><span><b aria-hidden="true">♟</b>入門</span></label>
+<label><input type="radio" name="difficulty" value="normal" checked><span><b aria-hidden="true">♞</b>標準</span></label>
+<label><input type="radio" name="difficulty" value="hard"><span><b aria-hidden="true">♛</b>進階</span></label>
+</div>
+</fieldset>
+<div id="second-area"><button type="button" id="second">第二位玩家登入</button></div>
+<button class="primary" id="start">開始對局</button>
+</form>
+<form id="join" hidden><label for="room-code">房間碼</label><div class="line"><input id="room-code" maxlength="16" required><button>加入</button></div></form>
+<button id="resume-online" type="button" hidden>回到上次房間</button>
+<div id="room" hidden><label for="invite">邀請連結</label><div class="line"><input id="invite" readonly><button id="copy">複製</button></div></div>
+<div id="controls" hidden><div class="line"><button id="pause">暫停</button><button id="resign">認輸</button><button id="export">下載棋譜（PGN）</button></div></div>
+<label class="hints"><span>走法提示</span><input id="hints" type="checkbox" role="switch" checked></label>
+<h2 id="record-title">走棋紀錄</h2>
+<div id="move-scroll"><table class="move-table" aria-labelledby="record-title"><thead><tr><th scope="col">回合</th><th scope="col">白方</th><th scope="col">黑方</th></tr></thead><tbody id="moves"></tbody></table></div>
+<p id="message" role="alert"></p>
+</aside>
+</main>
+<dialog id="auth-dialog">
+<form id="auth-form">
+<h2 id="auth-title">玩家登入</h2>
+<label>帳號 <input name="username" autocomplete="username" required></label>
+<label>密碼 <input name="password" type="password" required></label>
+<label id="nickname" hidden>暱稱 <input name="name" maxlength="24"></label>
+<p id="auth-error" role="alert"></p>
+<div class="line"><button class="primary" id="auth-submit">登入</button><button type="button" id="auth-toggle">註冊</button><button type="button" id="auth-close">關閉</button></div>
+</form>
+</dialog>
+<dialog id="promotion"><form method="dialog"><h2>選擇升變棋子</h2><div class="line"><button value="q">后</button><button value="r">車</button><button value="b">象</button><button value="n">馬</button><button value="">取消</button></div></form></dialog>
+</body>
+</html>
