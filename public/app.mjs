@@ -9,7 +9,9 @@ const persist = (key, value) => localStorage.setItem(key, JSON.stringify(value))
 const guest = { w: { id: 'white', name: '白方' }, b: { id: 'black', name: '黑方' } }
 const names = { k: '王', q: '后', r: '車', b: '象', n: '馬', p: '兵' }
 const guestOnly = document.documentElement.hasAttribute('data-guest-only')
-const requestedRoom = guestOnly ? null : new URLSearchParams(location.search).get('room')
+const query = new URLSearchParams(location.search)
+const requestedRoom = guestOnly ? null : query.get('room')
+const wantsOnline = !guestOnly && (requestedRoom || query.get('mode') === 'online')
 let session = {}
 let local = loadLocalGame('local')
 let online = null
@@ -340,7 +342,10 @@ $('auth-form').onsubmit = async event => {
     }
     $('auth-dialog').close()
     render()
-    if (slot === 'main' && requestedRoom && !online && session.online) { chooseMode('online'); await attempt(() => connect(requestedRoom)) }
+    if (slot === 'main' && wantsOnline && !online && session.online) {
+      chooseMode('online')
+      if (requestedRoom) await attempt(() => connect(requestedRoom))
+    }
   } catch (error) { $('auth-error').textContent = error.message }
   finally { $('auth-submit').disabled = false }
 }
@@ -359,19 +364,41 @@ async function connect(code) {
   $('invite').value = new URL('/?room=' + code, location.href).href
   online = joined
   connected = false
+  const receive = ({ game: value, serverNow }) => {
+    offset = serverNow - Date.now()
+    const shouldRender = !connected || value.version > online.version
+    connected = true
+    if (value.version > online.version) {
+      if (mode === 'online') selected = ''
+      online = value
+    }
+    if (shouldRender && mode === 'online') render()
+  }
+  if (session.transport === 'poll') {
+    let closed = false
+    let timer
+    stream = { close() { closed = true; clearTimeout(timer) } }
+    const poll = async () => {
+      try {
+        const packet = await api('rooms/' + code + '/state')
+        if (!closed) receive(packet)
+      } catch {
+        if (!closed && connected) {
+          connected = false
+          if (mode === 'online') render()
+        }
+      }
+      if (!closed) timer = setTimeout(poll, connected && mode === 'online' && !online.result ? 800 : 2500)
+    }
+    void poll()
+    render()
+    return
+  }
   const connection = new EventSource('/api/rooms/' + code + '/events')
   stream = connection
   connection.onmessage = event => {
     if (stream !== connection) return
-    const { game: value, serverNow } = JSON.parse(event.data)
-    offset = serverNow - Date.now()
-    const shouldRender = !connected || value.version > online.version
-    connected = true
-    if (value.version >= online.version) {
-      if (value.version !== online.version) selected = ''
-      online = value
-    }
-    if (shouldRender) render()
+    receive(JSON.parse(event.data))
   }
   connection.addEventListener('clock', event => { offset = Number(event.data) - Date.now() })
   connection.onerror = () => { if (stream === connection) { connected = false; render() } }
@@ -549,6 +576,7 @@ for (const button of document.querySelectorAll('[data-mode]')) {
   button.hidden = guestOnly && button.dataset.mode === 'online'
   button.onclick = () => chooseMode(button.dataset.mode)
 }
+$('hosted-online').hidden = !guestOnly || !$('hosted-online').hasAttribute('href')
 $('back-modes').onclick = () => chooseMode(null)
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { pauseLocal(); pauseComputer() }
@@ -572,6 +600,9 @@ if (!guestOnly) {
   await attempt(async () => {
     session = await api('session')
     render()
-    if (requestedRoom && session.main && session.online) { chooseMode('online'); await connect(requestedRoom) }
+    if (wantsOnline && session.main && session.online) {
+      chooseMode('online')
+      if (requestedRoom) await connect(requestedRoom)
+    }
   })
 }

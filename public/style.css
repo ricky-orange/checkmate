@@ -70,6 +70,8 @@ dialog label{margin:10px 0}
 .entry-actions{display:grid;gap:10px;margin:16px 0 0}
 .entry-actions button{padding:12px 16px}
 .entry-actions button[data-mode]{text-align:left}
+.mode-link{display:block;text-align:left;text-decoration:none;color:inherit;background:#32332c;border:1px solid #56554b;border-radius:7px;padding:12px 16px}
+.mode-link:focus-visible{outline:3px solid #92d395;outline-offset:-3px}
 .entry-actions strong,.entry-actions small{display:block}
 .entry-actions small{color:var(--dim);margin-top:3px}
 #entry-message:empty{display:none}

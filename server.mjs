@@ -7,7 +7,7 @@ import { getDatabase } from 'firebase-admin/database'
 import { GoogleAuth } from 'google-auth-library'
 import { newGame, transition } from './game.mjs'
 
-const { GOOGLE_SHEET_ID, FIREBASE_DATABASE_URL, SESSION_SECRET, SECURE_COOKIES, PORT = 5173, HOST = '127.0.0.1' } = process.env
+const { GOOGLE_SHEET_ID, FIREBASE_DATABASE_URL, SESSION_SECRET, SECURE_COOKIES, ONLINE_TRANSPORT, PORT = 5173, HOST = '127.0.0.1' } = process.env
 if (GOOGLE_SHEET_ID && (!SESSION_SECRET || SESSION_SECRET.length < 32)) throw Error('SESSION_SECRET 須至少 32 字元')
 const db = FIREBASE_DATABASE_URL && getDatabase(initializeApp({ credential: applicationDefault(), databaseURL: FIREBASE_DATABASE_URL }))
 const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/spreadsheets'] })
@@ -114,7 +114,7 @@ async function update(ref, callback) {
 async function api(req, res, path) {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method === 'GET' && path === '/api/session') {
-    return send(res, { accounts: Boolean(GOOGLE_SHEET_ID), online: Boolean(db && GOOGLE_SHEET_ID), main: player(req), second: player(req, 'second') })
+    return send(res, { accounts: Boolean(GOOGLE_SHEET_ID), online: Boolean(db && GOOGLE_SHEET_ID), transport: ONLINE_TRANSPORT === 'poll' ? 'poll' : 'events', main: player(req), second: player(req, 'second') })
   }
   if (req.method === 'POST' && (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] ?? '') ||
       (req.headers.origin && new URL(req.headers.origin).host !== req.headers.host))) throw failure('請求來源錯誤', 403)
@@ -140,10 +140,15 @@ async function api(req, res, path) {
     await db.ref('rooms/' + code).set(newGame({ w: user }, minutes))
     return send(res, { code })
   }
-  const match = path.match(/^\/api\/rooms\/([a-f0-9]{16})\/(join|events|action)$/)
+  const match = path.match(/^\/api\/rooms\/([a-f0-9]{16})\/(join|events|action|state)$/)
   if (!match) throw failure('找不到頁面', 404)
   const [, code, operation] = match
   const ref = db.ref('rooms/' + code)
+  if (operation === 'state' && req.method === 'GET') {
+    const game = (await ref.get()).val()
+    if (!sideOf(game, user)) throw failure('你未加入此房間', 403)
+    return send(res, { game, serverNow: Date.now() })
+  }
   if (operation === 'join' && req.method === 'POST') {
     const game = await update(ref, current => {
       if (!current) throw failure('找不到房間', 404)
