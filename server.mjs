@@ -4,13 +4,31 @@ import { createHmac, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'no
 import { promisify } from 'node:util'
 import { applicationDefault, initializeApp } from 'firebase-admin/app'
 import { getDatabase } from 'firebase-admin/database'
-import { GoogleAuth } from 'google-auth-library'
+import { GoogleAuth, Impersonated } from 'google-auth-library'
 import { newGame, transition } from './game.mjs'
 
 const { GOOGLE_SHEET_ID, FIREBASE_DATABASE_URL, SESSION_SECRET, SECURE_COOKIES, ONLINE_TRANSPORT, PORT = 5173, HOST = '127.0.0.1' } = process.env
+const { GOOGLE_SHEETS_SERVICE_ACCOUNT } = process.env
 if (GOOGLE_SHEET_ID && (!SESSION_SECRET || SESSION_SECRET.length < 32)) throw Error('SESSION_SECRET 須至少 32 字元')
 const db = FIREBASE_DATABASE_URL && getDatabase(initializeApp({ credential: applicationDefault(), databaseURL: FIREBASE_DATABASE_URL }))
-const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/spreadsheets'] })
+const sheetsScopes = ['https://www.googleapis.com/auth/spreadsheets']
+const auth = new GoogleAuth({ scopes: GOOGLE_SHEETS_SERVICE_ACCOUNT ? ['https://www.googleapis.com/auth/cloud-platform'] : sheetsScopes })
+let sheetsClient
+
+async function getSheetsClient() {
+  if (!GOOGLE_SHEETS_SERVICE_ACCOUNT) return auth.getClient()
+  if (!sheetsClient) {
+    sheetsClient = auth.getClient().then(sourceClient => new Impersonated({
+      sourceClient,
+      targetPrincipal: GOOGLE_SHEETS_SERVICE_ACCOUNT,
+      targetScopes: sheetsScopes,
+    })).catch(error => {
+      sheetsClient = undefined
+      throw error
+    })
+  }
+  return sheetsClient
+}
 const sheet = 'https://sheets.googleapis.com/v4/spreadsheets/' + GOOGLE_SHEET_ID + '/values/Players!A2:F'
 const derive = promisify(scrypt)
 const lifetime = 86400 * 7
@@ -62,7 +80,7 @@ async function account(body, register) {
   if (!/^[a-z0-9_.-]{3,32}$/.test(username) || password.length < 8 || password.length > 128 || (register && (!name || name.length > 24))) {
     throw failure('帳號需為 3–32 個英數或 . _ -，密碼至少 8 字元，暱稱最多 24 字元')
   }
-  const client = await auth.getClient()
+  const client = await getSheetsClient()
   const { data } = await client.request({ url: sheet })
   const row = (data.values ?? []).find(entry => entry[1] === username)
   if (register) {
